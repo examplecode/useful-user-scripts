@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name:zh-CN         自动嗅探页面中的音频视频资源
+// @name:zh-CN         自动嗅探页面中的视频音频资源
 // @name      Automatic sniffing of media resources on the page
 // @namespace    https://github.com/examplecode/useful-user-scripts/
 // @version      0.1
