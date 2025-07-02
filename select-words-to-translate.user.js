@@ -400,11 +400,100 @@
             e.preventDefault();
         }
     });
-    // 鼠标事件：防止选中的文本消失；显示、隐藏翻译图标
-    document.addEventListener('mouseup', showIcon);
-    // 选中变化事件
-    document.addEventListener('selectionchange', showIcon);
-    document.addEventListener('touchend', showIcon);
+    // 触屏事件处理
+    document.addEventListener('touchend', e => {
+        // 如果触摸的是浮动窗口内部，不做任何处理
+        if (icon.contains(e.target) || content.contains(e.target)) {
+            e.preventDefault();
+            return;
+        }
+        
+        // 获取当前选中文本
+        const currentSelection = window.getSelection().toString().trim();
+        
+        // 如果没有选中文本，隐藏浮动窗口
+        if (!currentSelection) {
+            hideIcon();
+            return;
+        }
+        
+        // 如果有选中文本，更新坐标并显示翻译
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            pageX = e.changedTouches[0].pageX;
+            pageY = e.changedTouches[0].pageY;
+        }
+    });
+    
+    // 添加一个变量跟踪选择是否被清除
+    let selectionWasCleared = false;
+    
+    // 选中变化事件 - 立即触发翻译
+    document.addEventListener('selectionchange', () => {
+        // 延迟少量时间执行，确保选择已完成
+        setTimeout(() => {
+            const newSelection = window.getSelection().toString().trim();
+            log('Selection changed:', newSelection);
+            
+            // 如果没有选中文本，隐藏面板并标记选择被清除
+            if (!newSelection) {
+                hideIcon();
+                selectionWasCleared = true;
+                return;
+            }
+            
+            // 如果选择内容变化或之前选择被清除过，都触发翻译
+            if (newSelection !== selected || selectionWasCleared) {
+                selected = newSelection;
+                selectionWasCleared = false; // 重置清除标记
+                
+                // 获取选择范围的坐标
+                try {
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        const range = selection.getRangeAt(0);
+                        const rect = range.getBoundingClientRect();
+                        pageX = rect.left + window.scrollX;
+                        pageY = rect.bottom + window.scrollY;
+                        
+                        // 触屏使用特殊偏移
+                        const offsetX = -26; // 单个翻译图标块宽度
+                        const offsetY = 16 * 3; // 一般字体高度的 3 倍
+                        
+                        // 直接触发显示翻译
+                        log('Triggering translation from selectionchange');
+                        icon.style.top = `${pageY + offsetY}px`;
+                        icon.style.left = `${pageX + offsetX}px`;
+                        icon.style.display = 'block';
+                        icon.style.position = 'absolute';
+                        icon.style.zIndex = zIndex;
+                        
+                        // 自动触发翻译
+                        icon.setAttribute('activate', 'activate');
+                        engineId = 'icon-dict';
+                        engineTriggerTime = new Date().getTime();
+                        engineActivateShow();
+                        audioCache = {};
+                        engineResult = {};
+                        iconArray[0].trigger(selected, engineTriggerTime);
+                    }
+                } catch (e) {
+                    log('Error getting selection coordinates:', e);
+                }
+            }
+        }, 100); // 增加延迟确保选择完成
+    });
+    
+    // 点击文档任何地方关闭翻译面板（除非点击的是图标或面板本身）
+    document.addEventListener('click', e => {
+        if (e.target !== icon && !icon.contains(e.target) && 
+            e.target !== content && !content.contains(e.target)) {
+            // 如果没有选中文本，隐藏面板
+            const currentSelection = window.getSelection().toString().trim();
+            if (!currentSelection) {
+                hideIcon();
+            }
+        }
+    });
     // 内容面板滚动事件
     content.addEventListener('scroll', e => {
         if (content.scrollHeight - content.scrollTop === content.clientHeight) {
@@ -899,44 +988,63 @@
         engineActivateHide();
         icon.querySelector(`img[icon-id="${engineId}"]`).setAttribute('activate', 'activate');
     }
-    /**显示 icon*/
+    /**显示翻译面板并触发翻译 - 触屏优化版*/
     function showIcon(e) {
         log('showIcon event:', e);
-        let offsetX = 4; // 横坐标翻译图标偏移
-        let offsetY = 8; // 纵坐标翻译图标偏移
-        // 更新翻译图标 X、Y 坐标
-        if (e.pageX && e.pageY) { // 鼠标
-            log('mouse pageX/Y');
-            pageX = e.pageX;
-            pageY = e.pageY;
+        
+        // 触屏专用偏移量
+        const offsetX = -26; // 单个翻译图标块宽度
+        const offsetY = 16 * 3; // 一般字体高度的 3 倍
+        
+        // 如果是触屏事件，获取坐标
+        if (e && e.changedTouches && e.changedTouches.length > 0) {
+            pageX = e.changedTouches[0].pageX;
+            pageY = e.changedTouches[0].pageY;
         }
-        if (e.changedTouches) { // 触屏
-            if (e.changedTouches.length > 0) { // 多点触控选取第 1 个
-                log('touch pageX/Y');
-                pageX = e.changedTouches[0].pageX;
-                pageY = e.changedTouches[0].pageY;
-                // 触屏修改翻译图标偏移（Android、iOS 选中后的动作菜单一般在当前文字顶部，翻译图标则放到底部）
-                offsetX = -26; // 单个翻译图标块宽度
-                offsetY = 16 * 3; // 一般字体高度的 3 倍，距离系统自带动作菜单、选择光标太近会导致无法点按
-            }
-        }
-        log(`selected:${selected}, pageX:${pageX}, pageY:${pageY}`)
-        if (e.target == icon || (e.target.parentNode && e.target.parentNode == icon)) { // 点击了翻译图标
+        
+        // 如果点击了翻译图标或内容面板，不做处理
+        if (e && (icon.contains(e.target) || content.contains(e.target))) {
             e.preventDefault();
             return;
         }
-        selected = window.getSelection().toString().trim(); // 当前选中文本
-        log(`selected:${selected}, icon display:${icon.style.display}`);
-        if (selected && icon.style.display != 'block' && pageX && pageY) { // 显示翻译图标
-            log('show icon');
+        
+        // 获取当前选中文本
+        const currentSelection = window.getSelection().toString().trim();
+        
+        // 如果是从 touchend 事件触发的，更新 selected 值
+        if (e && e.type && e.type === 'touchend') {
+            selected = currentSelection;
+        }
+        
+        log(`selected:${selected}, pageX:${pageX}, pageY:${pageY}`);
+        
+        // 如果没有选中文本，隐藏面板
+        if (!selected) {
+            hideIcon();
+            return;
+        }
+        
+        // 如果有选中文本且有位置信息
+        if (selected && pageX && pageY) {
+            log('show translation panel');
+            
+            // 设置面板位置
             icon.style.top = `${pageY + offsetY}px`;
             icon.style.left = `${pageX + offsetX}px`;
             icon.style.display = 'block';
-            // 兼容部分 Content Security Policy
             icon.style.position = 'absolute';
             icon.style.zIndex = zIndex;
-        } else if (!selected) { // 隐藏翻译图标
-            hideIcon();
+            
+            // 自动触发翻译
+            icon.setAttribute('activate', 'activate');
+            engineId = 'icon-dict';
+            engineTriggerTime = new Date().getTime();
+            engineActivateShow();
+            audioCache = {};
+            engineResult = {};
+            
+            // 触发翻译
+            iconArray[0].trigger(selected, engineTriggerTime);
         }
     }
     /**隐藏 icon*/
