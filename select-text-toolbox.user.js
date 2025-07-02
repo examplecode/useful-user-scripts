@@ -1,9 +1,11 @@
 // ==UserScript==
-// @name         Select Text Toolbox Mobile
-// @namespace    http://tampermonkey.net/
+// @name         Select Text Toolbox
+// @name:zh-CN   选中文本工具箱
+// @namespace    https://github.com/examplecode/useful-user-scripts/
 // @version      0.1
-// @description  Shows a horizontal floating toolbar when text is selected on mobile devices
-// @author       You
+// @description  Shows a horizontal floating toolbar when text is selected on mobile devices, containing search, reading, and sharing features.
+// @description:zh-CN  在移动设备上选中文本时显示一个水平浮动工具栏，包含搜索、朗读、分享等功能。
+// @author       examplecode
 // @match        *://*/*
 // @grant        GM_EX_getAppSearchEngineUrl
 // @grant        GM_EX_TTS
@@ -14,7 +16,7 @@
     'use strict';
     
     // Debug mode - set to true to see console logs
-    const DEBUG = false;
+    const DEBUG = true;
     
     // Helper function for logging
     const log = function(message) {
@@ -41,6 +43,12 @@
         justify-content: center;
     `;
 
+    // Function to hide toolbar
+    const hideToolbarAfterAction = () => {
+        log('Hiding toolbar after button action');
+        toolbar.style.display = 'none';
+    };
+    
     // Create buttons
     const createButton = (icon, tooltip, action) => {
         const button = document.createElement('button');
@@ -68,6 +76,8 @@
             e.stopPropagation();
             log(`Button ${tooltip} touched`);
             action(e);
+            // Hide toolbar after action is performed
+            setTimeout(hideToolbarAfterAction, 100);
         });
         
         // Also add click event for testing in desktop browsers
@@ -76,6 +86,8 @@
             e.stopPropagation();
             log(`Button ${tooltip} clicked`);
             action(e);
+            // Hide toolbar after action is performed
+            setTimeout(hideToolbarAfterAction, 100);
         });
         
         return button;
@@ -108,9 +120,19 @@
         '朗读',
         () => {
             const selectedText = window.getSelection().toString();
-            if (selectedText && window.speechSynthesis) {
-                const utterance = new SpeechSynthesisUtterance(selectedText);
-                window.speechSynthesis.speak(utterance);
+            if (selectedText) {
+                log('Using GM_EX_TTS for text-to-speech');
+                try {
+                    // Use the extension function for text-to-speech
+                    GM_EX_TTS(selectedText);
+                } catch (err) {
+                    log('Error using GM_EX_TTS: ' + err);
+                    // Fallback to browser's built-in speech synthesis if extension function fails
+                    if (window.speechSynthesis) {
+                        const utterance = new SpeechSynthesisUtterance(selectedText);
+                        window.speechSynthesis.speak(utterance);
+                    }
+                }
             }
         }
     );
@@ -121,31 +143,41 @@
         '分享',
         () => {
             const selectedText = window.getSelection().toString();
-            if (selectedText && navigator.share) {
-                navigator.share({
-                    text: selectedText
-                }).catch(err => console.error('Error sharing:', err));
-            } else if (selectedText) {
-                // Fallback for browsers that don't support Web Share API
+            if (selectedText) {
+                log('Using GM_EX_ShareTextToApp for sharing');
                 try {
-                    navigator.clipboard.writeText(selectedText);
-                    const notification = document.createElement('div');
-                    notification.textContent = '已复制到剪贴板';
-                    notification.style.cssText = `
-                        position: fixed;
-                        bottom: 20px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        background-color: #333;
-                        color: white;
-                        padding: 10px 15px;
-                        border-radius: 4px;
-                        z-index: 10000;
-                    `;
-                    document.body.appendChild(notification);
-                    setTimeout(() => document.body.removeChild(notification), 2000);
+                    // Use the extension function for sharing
+                    GM_EX_ShareTextToApp(selectedText);
                 } catch (err) {
-                    console.error('Failed to copy text:', err);
+                    log('Error using GM_EX_ShareTextToApp: ' + err);
+                    // Fallback to Web Share API or clipboard
+                    if (navigator.share) {
+                        navigator.share({
+                            text: selectedText
+                        }).catch(err => log('Error sharing with Web Share API:', err));
+                    } else {
+                        // Fallback for browsers that don't support Web Share API
+                        try {
+                            navigator.clipboard.writeText(selectedText);
+                            const notification = document.createElement('div');
+                            notification.textContent = '已复制到剪贴板';
+                            notification.style.cssText = `
+                                position: fixed;
+                                bottom: 20px;
+                                left: 50%;
+                                transform: translateX(-50%);
+                                background-color: #333;
+                                color: white;
+                                padding: 10px 15px;
+                                border-radius: 4px;
+                                z-index: 10000;
+                            `;
+                            document.body.appendChild(notification);
+                            setTimeout(() => document.body.removeChild(notification), 2000);
+                        } catch (err) {
+                            log('Failed to copy text:', err);
+                        }
+                    }
                 }
             }
         }
