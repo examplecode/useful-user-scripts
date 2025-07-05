@@ -4,6 +4,10 @@
 
 这里的所有脚本的版权归脚本原作者所有，部分脚本由X浏览器作者提供，其它均来自网络，脚本旨在为X浏览器用户提供更好的上网体验以及交流学习，如有侵权，请联系删除。
 
+
+
+
+
 ## 脚本索引
 
 | 名称 | 描述 | 脚本文件 |
@@ -26,5 +30,6 @@
 | 通用阅读器 | 为所有站点增加进入阅读模式按钮，点击后如果匹配成功则自动转码成为通用的阅读器样式方便使用，并提供扩展语音阅读功能 | [universal-reader.user.js](universal-reader.user.js) |
 | 阻止视频自动播放 | 阻止视频自动播放，用户交互后才允许播放；该脚本只针对移动端设备 | [video-auto-play-blocker.user.js](video-auto-play-blocker.user.js) |
 | 视频播放速度控制 | 为网页视频添加播放速度控制功能 | [video-playback-speed-control.user.js](video-playback-speed-control.user.js) |
-
-
+| Twitter/X 媒体下载 | 下载 Twitter/X 媒体文件 | [twitter-x-media-download.user.js](twitter-x-media-download.user.js) |
+| Instagram 下载器 | 下载 Instagram 媒体文件 | [instagram-download-button.user.js](instagram-download-button.user.js) |
+| 上下翻页按钮 | 在页面的右侧显示用于翻页的浮动按钮，阅读文章的时候更加便捷 | [page-down-up-button.user.js](page-down-up-button.user.js) |
