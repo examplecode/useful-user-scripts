@@ -15,7 +15,6 @@ The [Script Sharing](https://en.xbext.com/user-scripts/) section of XBrowser inc
 | Auto Pager | ⭐Seamlessly load next page content to the bottom of the webpage (similar to waterfall flow, infinite scrolling, no need to manually click next page)⭐ | [auto-pager.user.js](auto-pager.user.js) |
 | Auto Sniff Media | XBrowser exclusive, calls XBrowser's API, ineffective in other browsers | [auto-sniff-media.user.js](auto-sniff-media.user.js) |
 | Auto Unfold | Automatically expand folded content on webpages, no need to manually click "Show More" | [auto-unfold.user.js](auto-unfold.user.js) |
-| Snap Links Mod | Batch copy or open links from webpages, select checkboxes | [batch-open-links.user.js](batch-open-links.user.js) |
 | Circle Reader | Fully customizable immersive reading experience, providing copying, multi-page merging, column reading, text-to-speech, exporting to other file formats, and more. | [circle-reader.user.js](circle-reader.user.js) |
 | Immersive Translation | Free bilingual webpage translation plugin, supports PDF translation, video bilingual subtitle translation, EPUB e-book translation | [immersive-translate.user.js](immersive-translate.user.js) |
 | KISS Translator | A simple bilingual translation extension & userscript | [kiss-translator.user.js](kiss-translator.user.js) |
