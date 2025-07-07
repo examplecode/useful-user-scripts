@@ -1,12 +1,14 @@
 # Userful User Scripts
 
-这里是收集整理的一些有用的油猴脚本，这里所有的脚本都在X浏览器中测试过，其它浏览器如遇到兼容性问题请联系脚本原作者。
+[English](README-en.md) | [中文](README.md)
+
+
+这里是收集整理的一些在手机浏览器中可以使用的油猴脚本，所有的脚本都在X浏览器中测试过，其它浏览器如遇到兼容性问题请联系脚本原作者。
 
 这里的所有脚本的版权归脚本原作者所有，部分脚本由X浏览器作者提供，其它均来自网络，脚本旨在为X浏览器用户提供更好的上网体验以及交流学习，如有侵权，请联系删除。
 
 
-
-
+X浏览器的[脚本分享](https://www.xbext.com/user-scripts/)板块包含了这些脚本的使用和演示。你可以通过[《油猴脚本API参考》](https://github.com/examplecode/tampermonkey-api-reference/)来学习油猴脚本的编写。也可以参考[《在X浏览器中安装使用油猴脚本》](https://www.xbext.com/docs/how-to-use-tampermonkey-user-script-in-xbrowser.html)在X浏览器安装其它来源的油猴脚本。
 
 ## 脚本索引
 
