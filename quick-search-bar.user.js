@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name:zh-CN   多重搜索引擎切换工具栏
+// @name:zh-CN   快速切换搜索引擎工具栏
 // @name:     Quick Search Bar
 // @namespace    https://github.com/examplecode/useful-user-scripts
 // @homepageURL  https://github.com/examplecode/useful-user-scripts
