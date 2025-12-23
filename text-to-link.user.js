@@ -22,14 +22,14 @@
         // Whether to run on DOM mutations (new content)
         observeDOMChanges: true,
         
-        // Maximum execution time in ms to prevent freezing
-        maxExecutionTime: 2000,
+        // Maximum execution time in ms to prevent freezing (0 or Infinity for no limit)
+        maxExecutionTime: 0,
         
         // CSS selector for elements to exclude
-        excludeSelector: 'a, pre, code, script, style, textarea, input, .no-linkify',
+        excludeSelector: 'a, pre, code, script, style, textarea, input, .no-linkify, head, meta, noscript, object, embed, iframe, canvas, svg',
         
-        // Regular expressions for matching URLs and domains
-        urlRegex: /\b(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}(?::\d{1,5})?(?:\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?\b/gi,
+        // Aggressive regular expression for matching URLs (inspired by the working script)
+        urlRegex: /((https?:\/\/|www\.)[\x21-\x7e]+[\w\/=]|(\w[\w._-]+\.(com|cn|org|net|info|tv|cc|gov|edu))(\/[\x21-\x7e]*[\w\/])?|ed2k:\/\/[\x21-\x7e]+\|\/|thunder:\/\/[\x21-\x7e]+=)/gi,
         
         // Whether to open links in new tab
         openInNewTab: true
@@ -50,54 +50,39 @@
         if (!parent || isExcluded(parent)) return;
         
         const text = node.textContent;
-        if (!text || !config.urlRegex.test(text)) return;
+        if (!text) return;
+
+        // Use the aggressive regex to check if there are matches
+        const execRegex = new RegExp(config.urlRegex.source, config.urlRegex.flags);
+        if (!execRegex.test(text)) return;
         
-        // Reset regex lastIndex
-        config.urlRegex.lastIndex = 0;
-        
-        const fragments = [];
-        let lastIndex = 0;
-        let match;
-        
-        while ((match = config.urlRegex.exec(text)) !== null) {
-            // Add text before the match
-            if (match.index > lastIndex) {
-                fragments.push(document.createTextNode(text.substring(lastIndex, match.index)));
+        // Escape HTML to prevent XSS when using innerHTML
+        const escapeHTML = (str) => str.replace(/[&<>"']/g, m => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[m]));
+
+        // Simple but effective replacement logic similar to the working script
+        const replacedHTML = text.replace(config.urlRegex, (match) => {
+            let href = match;
+            if (!/^(https?|ed2k|thunder):\/\//i.test(match)) {
+                href = 'http://' + match;
             }
             
-            // Create the link element
-            const link = document.createElement('a');
-            const url = match[0];
+            const target = config.openInNewTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+            return `<a href="${escapeHTML(href)}" class="linkified" data-linkified="true"${target}>${escapeHTML(match)}</a>`;
+        });
+
+        if (replacedHTML !== text) {
+            const span = document.createElement('span');
+            span.className = 'linkified-container';
+            span.innerHTML = replacedHTML;
             
-            // Add protocol if missing
-            let href = url;
-            if (!/^https?:\/\//i.test(url)) {
-                href = 'http://' + url;
-            }
+            // Mark children as processed to avoid re-processing
+            Array.from(span.childNodes).forEach(child => {
+                if (child.nodeType === Node.TEXT_NODE) processedNodes.add(child);
+            });
             
-            link.href = href;
-            link.textContent = url;
-            link.className = 'linkified';
-            
-            if (config.openInNewTab) {
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-            }
-            
-            fragments.push(link);
-            lastIndex = config.urlRegex.lastIndex;
-        }
-        
-        // Add remaining text
-        if (lastIndex < text.length) {
-            fragments.push(document.createTextNode(text.substring(lastIndex)));
-        }
-        
-        // Replace the text node with the fragments
-        if (fragments.length > 1) {
-            const container = document.createDocumentFragment();
-            fragments.forEach(fragment => container.appendChild(fragment));
-            parent.replaceChild(container, node);
+            parent.replaceChild(span, node);
         }
     }
     
@@ -109,6 +94,9 @@
     function isExcluded(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
         
+        // Skip already processed links
+        if (element.hasAttribute && element.hasAttribute('data-linkified')) return true;
+
         // Check if the element or any of its ancestors match the exclude selector
         if (element.matches && element.matches(config.excludeSelector)) return true;
         if (element.closest && element.closest(config.excludeSelector)) return true;
@@ -124,22 +112,57 @@
      * @param {Node} root - The root element to process
      */
     function processElement(root) {
-        if (!root || processedNodes.has(root)) return;
+        if (!root) return;
         
-        // Mark as processed
-        processedNodes.add(root);
-        
-        // Process with a time limit to prevent freezing
-        const startTime = Date.now();
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        // Collect all text nodes first to avoid TreeWalker skipping nodes after DOM mutation
+        const textNodes = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(node) {
+                if (processedNodes.has(node)) return NodeFilter.FILTER_REJECT;
+                const parent = node.parentNode;
+                if (!parent || isExcluded(parent)) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
         
         let node;
         while ((node = walker.nextNode())) {
-            processTextNode(node);
+            textNodes.push(node);
+        }
+
+        // Mark current root as processed
+        processedNodes.add(root);
+        
+        // Process collected nodes
+        const startTime = Date.now();
+        const limit = config.maxExecutionTime || Infinity;
+
+        for (let i = 0; i < textNodes.length; i++) {
+            processTextNode(textNodes[i]);
             
-            // Check if we've exceeded the maximum execution time
-            if (Date.now() - startTime > config.maxExecutionTime) {
-                console.log('Text to Link Converter: Maximum execution time reached');
+            // Check execution time limit and defer if necessary
+            if (i < textNodes.length - 1 && Date.now() - startTime > limit && limit !== Infinity) {
+                console.log('Text to Link Converter: Maximum execution time reached, deferring remaining ' + (textNodes.length - i - 1) + ' nodes');
+                const remainingNodes = textNodes.slice(i + 1);
+                setTimeout(() => processNodesBatch(remainingNodes), 10);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Process a batch of nodes (used for deferred processing)
+     */
+    function processNodesBatch(nodes) {
+        const startTime = Date.now();
+        const limit = config.maxExecutionTime || Infinity;
+
+        for (let i = 0; i < nodes.length; i++) {
+            processTextNode(nodes[i]);
+            
+            if (i < nodes.length - 1 && Date.now() - startTime > limit && limit !== Infinity) {
+                const remainingNodes = nodes.slice(i + 1);
+                setTimeout(() => processNodesBatch(remainingNodes), 10);
                 break;
             }
         }
