@@ -4,7 +4,7 @@
 // @namespace    https://github.com/examplecode/useful-user-scripts
 // @homepageURL  https://github.com/examplecode/useful-user-scripts
 // @author       大萌主
-// @version      1.4.6
+// @version      1.5.1
 // @description  Quick search toggle toolbar for mobile browsers, supports reading search engine settings directly from XBrowser.
 // @description:zh-CN 适用于手机浏览器的快捷搜索切换工具条，支持直接读取X浏览器的搜索引擎设置，支持排序和隐藏搜索引擎，脚本菜单可以重置默认设置
 // @match        *://*/*
@@ -20,6 +20,11 @@
 
     const STORAGE_KEY = 'quick_search_bar_fixed_final';
     const queryParams = ["q", "wd", "word", "keyword", "text", "query", "p", "key"];
+
+    // 滚动控制变量
+    let lastScrollTop = 0;
+    let toolbarHost = null;
+    let toolbarVisible = true;
 
     // 稳定 ID
     function stableId(name, host) {
@@ -132,7 +137,6 @@
         container.innerHTML = '';
         searchEngines.forEach((engine, i) => {
             const item = document.createElement('div');
-            // 关键：使用 all:unset + 强制布局，彻底杜绝必应等页面的样式污染
             item.style.cssText = 'all:unset;display:flex;align-items:center;padding:14px 16px;background:#fff;border:1px solid #e1e4e8;border-radius:12px;margin:12px 0;box-sizing:border-box;';
 
             item.innerHTML = `
@@ -182,7 +186,11 @@
                 for (const p of queryParams) {
                     const match = url.match(new RegExp('[?&]' + p + '=([^&]+)'));
                     if (match) {
-                        return { engine: e, query: decodeURIComponent(match[1].split('&')[0]) };
+                        // 修复：直接提取原始查询字符串，不进行解码
+                        // 这样空格会保持为+号（如果是+号编码）或%20（如果是%20编码）
+                        // 然后在创建工具栏时直接使用这个原始字符串
+                        const queryParam = match[1].split('&')[0];
+                        return { engine: e, rawQuery: queryParam };
                     }
                 }
             }
@@ -190,35 +198,186 @@
         return null;
     }
 
+    // 滚动控制函数
+    function handleScroll() {
+        if (!toolbarHost) return;
+        
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollingDown = scrollTop > lastScrollTop;
+        
+        // 设置滚动阈值，避免小幅度滚动时频繁显示/隐藏
+        const scrollThreshold = 10;
+        
+        if (scrollingDown && scrollTop - lastScrollTop > scrollThreshold) {
+            // 向下滚动，隐藏工具栏
+            if (toolbarVisible) {
+                toolbarHost.style.transform = 'translateY(100%)';
+                toolbarVisible = false;
+            }
+        } else if (!scrollingDown && lastScrollTop - scrollTop > scrollThreshold) {
+            // 向上滚动，显示工具栏
+            if (!toolbarVisible) {
+                toolbarHost.style.transform = 'translateY(0)';
+                toolbarVisible = true;
+            }
+        }
+        
+        lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+    }
+
     function createToolbar(info) {
-        const { engine: currentEngine, query } = info;
+        const { engine: currentEngine, rawQuery } = info;
 
-        const host = document.createElement('div');
-        host.style.cssText = 'position:fixed;bottom:0;left:0;width:100%;z-index:9999999;font-family:-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+        toolbarHost = document.createElement('div');
+        toolbarHost.style.cssText = 'position:fixed;bottom:0;left:0;width:100%;z-index:9999999;font-family:-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;transform:translateY(0);transition:transform 0.3s ease;';
 
-        const shadow = host.attachShadow({mode: 'open'});
+        const shadow = toolbarHost.attachShadow({mode: 'open'});
 
         const style = document.createElement('style');
         style.textContent = `
-            .toolbar-content{display:flex;width:100%;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;background:rgba(255,255,255,0.95);
-                border-top:1px solid rgba(224,224,224,0.8);height:52px;padding:0 8px;align-items:center;white-space:nowrap;
-                backdrop-filter:blur(20px);box-shadow:0 -2px 20px rgba(0,0,0,0.08);}
+            .toolbar-content{
+                display:flex;
+                width:100%;
+                box-sizing:border-box;
+                overflow-x:auto;
+                overflow-y:hidden;
+                background:rgba(255,255,255,0.95);
+                border-top:1px solid rgba(224,224,224,0.8);
+                height:48px; /* 工具栏整体高度稍微调低 */
+                padding:0 8px;
+                align-items:center;
+                white-space:nowrap;
+                backdrop-filter:blur(20px);
+                box-shadow:0 -2px 20px rgba(0,0,0,0.08);
+            }
             .toolbar-content::-webkit-scrollbar{display:none;}
-            a{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;margin:0 4px;border-radius:10px;
-                text-decoration:none;font-weight:500;font-size:14.5px;min-width:fit-content;transition:all .3s;
-                background:#ffffff;border:1.5px solid #c0c0c0;color:#000;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
-            a:hover{background:#f5f5f5;border-color:#999;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
-            a.active{color:#007aff !important;background:#fff !important;border:2px solid #007aff !important;
-                font-weight:600;box-shadow:0 4px 16px rgba(0,122,255,0.3);transform:translateY(-1px);}
-            .manage-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;margin:0 4px;color:#666;
-                cursor:pointer;font-weight:500;border-radius:10px;background:rgba(248,249,250,0.9);}
-            .manage-icon{width:18px;height:18px;background:currentColor;
-                mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1 -2.83 0l-.06-.06a1.65 1.65 0 0 0 -1.82 -.33 1.65 1.65 0 0 0 -1 1.51V21a2 2 0 0 1 -2 2 2 2 0 0 1 -2 -2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0 -1.82.33l-.06.06a2 2 0 0 1 -2.83 0 2 2 0 0 1 0 -2.83l-.06-.06a1.65 1.65 0 0 0 .33 -1.82 1.65 1.65 0 0 0 -1.51 -1H3a2 2 0 0 1 -2 -2 2 2 0 0 1 2 -2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 -.33 -1.82l-.06-.06a2 2 0 0 1 0 -2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 -1.51V3a2 2 0 0 1 2 -2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82 -.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 -.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1 -2 2h-.09a1.65 1.65 0 0 0 -1.51 1z"/></svg>') no-repeat center;
-                -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1 -2.83 0l-.06-.06a1.65 1.65 0 0 0 -1.82 -.33 1.65 1.65 0 0 0 -1 1.51V21a2 2 0 0 1 -2 2 2 2 0 0 1 -2 -2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0 -1.82.33l-.06.06a2 2 0 0 1 -2.83 0 2 2 0 0 1 0 -2.83l-.06-.06a1.65 1.65 0 0 0 .33 -1.82 1.65 1.65 0 0 0 -1.51 -1H3a2 2 0 0 1 -2 -2 2 2 0 0 1 2 -2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 -.33 -1.82l-.06-.06a2 2 0 0 1 0 -2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 -1.51V3a2 2 0 0 1 2 -2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82 -.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 -.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1 -2 2h-.09a1.65 1.65 0 0 0 -1.51 1z"/></svg>') no-repeat center;
-                margin-right:8px;}
-            .separator{height:24px;width:1px;background:#e0e0e0;margin:0 12px;opacity:0.6;}
-            @media(max-width:768px){.toolbar-content{height:48px;}}
-            @media(max-width:480px){.toolbar-content{height:44px;} a,.manage-btn{padding:6px 10px;font-size:13px;}}
+            
+            /* 搜索按钮样式 - 高度改矮 */
+            a{
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                padding:6px 14px; /* 内边距减小，使按钮更矮 */
+                margin:0 4px;
+                border-radius:8px; /* 圆角稍微减小 */
+                text-decoration:none;
+                font-weight:500;
+                font-size:14px;
+                min-width:fit-content;
+                transition:all .3s;
+                background:#ffffff;
+                border:1px solid #c0c0c0;
+                color:#000;
+                box-shadow:0 1px 3px rgba(0,0,0,0.08);
+                height:32px; /* 高度从36px改为32px，更矮 */
+                line-height:1;
+                box-sizing:border-box;
+            }
+            a:hover{
+                background:#f5f5f5;
+                border-color:#999;
+                transform:translateY(-1px);
+                box-shadow:0 3px 8px rgba(0,0,0,0.1);
+            }
+            a.active{
+                color:#007aff !important;
+                background:#fff !important;
+                border:1px solid #007aff !important;
+                font-weight:600;
+                transform:translateY(-1px);
+            }
+            
+            /* 管理按钮样式 - 高度改矮 */
+            .manage-btn{
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                padding:8px 16px; /* 内边距减小 */
+                margin:0 4px;
+                color:#666;
+                cursor:pointer;
+                font-weight:500;
+                border-radius:8px; /* 圆角稍微减小 */
+                background:rgba(248,249,250,0.9);
+                height:32px; /* 高度从36px改为32px，更矮 */
+                line-height:1;
+                box-sizing:border-box;
+                border:1px solid #c0c0c0;
+                transition:all .3s;
+            }
+            .manage-btn:hover{
+                background:#f5f5f5;
+                border-color:#999;
+                transform:translateY(-1px);
+                box-shadow:0 3px 8px rgba(0,0,0,0.1);
+            }
+            
+            /* 管理图标样式 - 调整大小以适应更矮的按钮 */
+            .manage-icon{
+                display:inline-block;
+                width:18px; /* 从20px改为18px，适应更矮的按钮 */
+                height:18px; /* 从20px改为18px */
+                position:relative;
+                color:currentColor;
+            }
+            
+            /* 使用SVG创建齿轮图标，确保居中 */
+            .manage-icon::before {
+                content: '';
+                position:absolute;
+                top:50%;
+                left:50%;
+                transform:translate(-50%, -50%);
+                width:18px; /* 从20px改为18px */
+                height:18px; /* 从20px改为18px */
+                background:currentColor;
+                mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2.5"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1 -2.83 0l-.06-.06a1.65 1.65 0 0 0 -1.82 -.33 1.65 1.65 0 0 0 -1 1.51V21a2 2 0 0 1 -2 2 2 2 0 0 1 -2 -2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0 -1.82.33l-.06.06a2 2 0 0 1 -2.83 0 2 2 0 0 1 0 -2.83l-.06-.06a1.65 1.65 0 0 0 .33 -1.82 1.65 1.65 0 0 0 -1.51 -1H3a2 2 0 0 1 -2 -2 2 2 0 0 1 2 -2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 -.33 -1.82l-.06-.06a2 2 0 0 1 0 -2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 -1.51V3a2 2 0 0 1 2 -2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82 -.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 -.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1 -2 2h-.09a1.65 1.65 0 0 0 -1.51 1z"/></svg>');
+                -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2.5"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1 -2.83 0l-.06-.06a1.65 1.65 0 0 0 -1.82 -.33 1.65 1.65 0 0 0 -1 1.51V21a2 2 0 0 1 -2 2 2 2 0 0 1 -2 -2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0 -1.82.33l-.06.06a2 2 0 0 1 -2.83 0 2 2 0 0 1 0 -2.83l-.06-.06a1.65 1.65 0 0 0 .33 -1.82 1.65 1.65 0 0 0 -1.51 -1H3a2 2 0 0 1 -2 -2 2 2 0 0 1 2 -2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 -.33 -1.82l-.06-.06a2 2 0 0 1 0 -2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 -1.51V3a2 2 0 0 1 2 -2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82 -.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 -.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1 -2 2h-.09a1.65 1.65 0 0 0 -1.51 1z"/></svg>');
+                mask-repeat:no-repeat;
+                mask-position:center;
+                mask-size:contain;
+                -webkit-mask-repeat:no-repeat;
+                -webkit-mask-position:center;
+                -webkit-mask-size:contain;
+            }
+            
+            .separator{
+                height:20px; /* 分隔线高度也相应减小 */
+                width:1px;
+                background:#e0e0e0;
+                margin:0 12px;
+                opacity:0.6;
+            }
+            
+            /* 移除所有按钮的焦点边框 */
+            a:focus, .manage-btn:focus, button:focus {
+                outline: none !important;
+                box-shadow: none !important;
+            }
+            
+            @media(max-width:768px){
+                .toolbar-content{height:44px;} /* 移动端工具栏高度也相应减小 */
+                a,.manage-btn{
+                    height:30px; /* 移动端按钮高度也减小 */
+                    padding:5px 12px;
+                }
+            }
+            @media(max-width:480px){
+                .toolbar-content{height:40px;} /* 更小的屏幕工具栏更矮 */
+                a,.manage-btn{
+                    height:28px; /* 更小的屏幕按钮更矮 */
+                    padding:4px 10px;
+                    font-size:13px;
+                }
+                .manage-icon{
+                    width:16px;
+                    height:16px;
+                }
+                .manage-icon::before {
+                    width:16px;
+                    height:16px;
+                }
+            }
         `;
         shadow.appendChild(style);
 
@@ -228,7 +387,8 @@
         searchEngines.filter(e => e.visible).forEach(engine => {
             const a = document.createElement('a');
             a.textContent = engine.name;
-            a.href = engine.url.replace('%keywords%', encodeURIComponent(query));
+            // 修复：直接使用原始查询字符串，不进行额外编码
+            a.href = engine.url.replace('%keywords%', rawQuery);
             if (currentEngine && engine.id === currentEngine.id) a.classList.add('active');
             a.onclick = e => { e.preventDefault(); location.href = a.href; };
             content.appendChild(a);
@@ -246,8 +406,12 @@
         content.appendChild(btn);
 
         shadow.appendChild(content);
-        document.body.appendChild(host);
-        document.body.style.paddingBottom = '60px';
+        document.body.appendChild(toolbarHost);
+        document.body.style.paddingBottom = '55px'; /* 底部间距也相应减小 */
+
+        // 添加滚动监听
+        lastScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        window.addEventListener('scroll', handleScroll, { passive: true });
     }
 
     const info = getCurrentInfo();

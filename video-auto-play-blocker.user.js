@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         阻止视频自动播放
-// @namespace     https://github.com/examplecode/useful-user-scripts/
+// @namespace    https://github.com/examplecode/useful-user-scripts/
 // @version      1.0
 // @description  阻止视频自动播放，用户交互后才允许播放；该脚本只针对移动端设备
 // @author       examplecode
