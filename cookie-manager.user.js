@@ -26,321 +26,398 @@
 
     // ==================== 样式 ====================
     const STYLES = `
+        /* 样式重置 - 只重置容易冲突的属性，不重置 margin/padding */
+        #cookie-manager-panel,
+        #cookie-manager-panel * {
+            box-sizing: border-box !important;
+            text-align: left !important;
+            word-break: normal !important;
+            word-wrap: normal !important;
+            white-space: normal !important;
+            vertical-align: baseline !important;
+            float: none !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+
         #cookie-manager-panel {
-            position: fixed;
-            top: 0;
-            right: -${CONFIG.panelWidth};
-            width: ${CONFIG.panelWidth};
-            height: 100vh;
-            background: #fff;
-            box-shadow: -2px 0 12px rgba(0,0,0,0.15);
-            z-index: 999999;
-            transition: right 0.3s ease;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            position: fixed !important;
+            top: 0 !important;
+            right: -${CONFIG.panelWidth} !important;
+            width: ${CONFIG.panelWidth} !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            background: #fff !important;
+            box-shadow: -2px 0 12px rgba(0,0,0,0.15) !important;
+            z-index: 2147483647 !important;
+            transition: right 0.3s ease !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            color: #333 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
         }
         #cookie-manager-panel.open {
-            right: 0;
-        }
-        #cookie-manager-panel * {
-            box-sizing: border-box;
+            right: 0 !important;
         }
         .cm-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            padding: 12px 16px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            flex-shrink: 0 !important;
         }
         .cm-header h3 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 600;
+            margin: 0 !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: white !important;
+            display: inline-block !important;
+            width: auto !important;
         }
         .cm-header-actions {
-            display: flex;
-            gap: 8px;
+            display: flex !important;
+            gap: 8px !important;
+            flex-shrink: 0 !important;
+            width: auto !important;
         }
         .cm-header-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            width: 28px;
-            height: 28px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: rgba(255,255,255,0.2) !important;
+            color: white !important;
+            width: 28px !important;
+            height: 28px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
         }
         .cm-header-btn:hover {
-            background: rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.35) !important;
         }
         .cm-toolbar {
-            padding: 10px 12px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            gap: 6px;
-            flex-shrink: 0;
-            flex-wrap: wrap;
+            padding: 10px 12px !important;
+            border-bottom: 1px solid #eee !important;
+            display: flex !important;
+            gap: 6px !important;
+            flex-shrink: 0 !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
         }
         .cm-btn {
-            padding: 6px 12px;
-            border: 1px solid #ddd;
-            background: #fff;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            color: #333;
-            transition: all 0.2s;
-            white-space: nowrap;
+            padding: 6px 12px !important;
+            border: 1px solid #ddd !important;
+            background: #fff !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 12px !important;
+            color: #333 !important;
+            transition: all 0.2s !important;
+            white-space: nowrap !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: auto !important;
+            height: auto !important;
+            line-height: 1.5 !important;
         }
         .cm-btn:hover {
-            background: #f5f5f5;
-            border-color: #ccc;
+            background: #f5f5f5 !important;
+            border-color: #ccc !important;
         }
         .cm-btn-primary {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
+            background: #667eea !important;
+            color: white !important;
+            border-color: #667eea !important;
         }
         .cm-btn-primary:hover {
-            background: #5a6fd6;
+            background: #5a6fd6 !important;
         }
         .cm-btn-danger {
-            color: #e74c3c;
-            border-color: #e74c3c;
+            color: #e74c3c !important;
+            border-color: #e74c3c !important;
+            background: #fff !important;
         }
         .cm-btn-danger:hover {
-            background: #e74c3c;
-            color: white;
+            background: #e74c3c !important;
+            color: white !important;
         }
         .cm-search {
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
-            flex-shrink: 0;
+            padding: 8px 12px !important;
+            border-bottom: 1px solid #eee !important;
+            display: block !important;
+            flex-shrink: 0 !important;
+            width: 100% !important;
         }
         .cm-search input {
-            width: 100%;
-            padding: 6px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
-            outline: none;
+            width: 100% !important;
+            padding: 6px 10px !important;
+            border: 1px solid #ddd !important;
+            border-radius: 4px !important;
+            font-size: 13px !important;
+            outline: none !important;
+            background: #fff !important;
+            color: #333 !important;
+            display: block !important;
         }
         .cm-search input:focus {
-            border-color: #667eea;
+            border-color: #667eea !important;
         }
         .cm-cookie-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px 12px;
+            flex: 1 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            padding: 8px 12px !important;
+            display: block !important;
+            width: 100% !important;
         }
         .cm-cookie-item {
-            background: #f9f9f9;
-            border: 1px solid #eee;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            overflow: hidden;
+            background: #f9f9f9 !important;
+            border: 1px solid #eee !important;
+            border-radius: 6px !important;
+            margin-bottom: 8px !important;
+            overflow: hidden !important;
+            display: block !important;
+            width: 100% !important;
         }
         .cm-cookie-header {
-            display: flex;
-            align-items: center;
-            padding: 8px 10px;
-            cursor: pointer;
-            user-select: none;
+            display: flex !important;
+            align-items: center !important;
+            padding: 8px 10px !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            width: 100% !important;
         }
         .cm-cookie-header:hover {
-            background: #f0f0f0;
+            background: #f0f0f0 !important;
         }
         .cm-cookie-name {
-            font-weight: 600;
-            font-size: 13px;
-            color: #333;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-weight: 600 !important;
+            font-size: 13px !important;
+            color: #333 !important;
+            flex: 1 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            display: inline-block !important;
+            width: auto !important;
         }
         .cm-cookie-value-preview {
-            font-size: 11px;
-            color: #888;
-            max-width: 120px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            margin-left: 8px;
+            font-size: 11px !important;
+            color: #888 !important;
+            max-width: 120px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            margin-left: 8px !important;
+            display: inline-block !important;
+            flex-shrink: 0 !important;
+            width: auto !important;
         }
         .cm-cookie-toggle {
-            font-size: 12px;
-            color: #999;
-            margin-left: 8px;
-            transition: transform 0.2s;
+            font-size: 12px !important;
+            color: #999 !important;
+            margin-left: 8px !important;
+            transition: transform 0.2s !important;
+            display: inline-block !important;
+            flex-shrink: 0 !important;
+            width: auto !important;
         }
         .cm-cookie-toggle.expanded {
-            transform: rotate(180deg);
+            transform: rotate(180deg) !important;
         }
         .cm-cookie-details {
-            display: none;
-            padding: 10px;
-            background: #fff;
-            border-top: 1px solid #eee;
+            display: none !important;
+            padding: 10px !important;
+            background: #fff !important;
+            border-top: 1px solid #eee !important;
         }
         .cm-cookie-details.show {
-            display: block;
+            display: block !important;
         }
         .cm-detail-row {
-            display: flex;
-            margin-bottom: 6px;
-            font-size: 12px;
+            display: flex !important;
+            margin-bottom: 6px !important;
+            font-size: 12px !important;
+            align-items: flex-start !important;
+            width: 100% !important;
         }
         .cm-detail-label {
-            width: 70px;
-            color: #666;
-            flex-shrink: 0;
+            width: 70px !important;
+            color: #666 !important;
+            flex-shrink: 0 !important;
+            display: inline-block !important;
+            white-space: nowrap !important;
         }
         .cm-detail-value {
-            flex: 1;
-            color: #333;
-            word-break: break-all;
+            flex: 1 !important;
+            color: #333 !important;
+            word-break: break-all !important;
+            white-space: normal !important;
+            display: inline-block !important;
+            min-width: 0 !important;
         }
         .cm-detail-actions {
-            display: flex;
-            gap: 6px;
-            margin-top: 8px;
+            display: flex !important;
+            gap: 6px !important;
+            margin-top: 8px !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
         }
         .cm-empty {
-            text-align: center;
-            color: #999;
-            padding: 40px 20px;
-            font-size: 14px;
+            text-align: center !important;
+            color: #999 !important;
+            padding: 40px 20px !important;
+            font-size: 14px !important;
         }
         .cm-status {
-            padding: 6px 12px;
-            background: #f5f5f5;
-            border-top: 1px solid #eee;
-            font-size: 11px;
-            color: #666;
-            flex-shrink: 0;
+            padding: 6px 12px !important;
+            background: #f5f5f5 !important;
+            border-top: 1px solid #eee !important;
+            font-size: 11px !important;
+            color: #666 !important;
+            flex-shrink: 0 !important;
+            display: block !important;
+            width: 100% !important;
         }
         /* 模态框 */
         .cm-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.4);
-            z-index: 1000000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: rgba(0,0,0,0.4) !important;
+            z-index: 2147483647 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         .cm-modal {
-            background: white;
-            border-radius: 8px;
-            width: 340px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            background: white !important;
+            border-radius: 8px !important;
+            width: 340px !important;
+            max-width: 90% !important;
+            max-height: 80vh !important;
+            overflow-y: auto !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
+            display: block !important;
         }
         .cm-modal-header {
-            padding: 14px 16px;
-            border-bottom: 1px solid #eee;
-            font-weight: 600;
-            font-size: 15px;
+            padding: 14px 16px !important;
+            border-bottom: 1px solid #eee !important;
+            font-weight: 600 !important;
+            font-size: 15px !important;
+            color: #333 !important;
+            display: block !important;
         }
         .cm-modal-body {
-            padding: 16px;
+            padding: 16px !important;
+            display: block !important;
         }
         .cm-form-group {
-            margin-bottom: 12px;
+            margin-bottom: 12px !important;
+            display: block !important;
         }
         .cm-form-group label {
-            display: block;
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 4px;
+            display: block !important;
+            font-size: 12px !important;
+            color: #666 !important;
+            margin-bottom: 4px !important;
+            text-align: left !important;
         }
         .cm-form-group input,
         .cm-form-group select {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
-            outline: none;
+            width: 100% !important;
+            padding: 8px 10px !important;
+            border: 1px solid #ddd !important;
+            border-radius: 4px !important;
+            font-size: 13px !important;
+            outline: none !important;
+            background: #fff !important;
+            color: #333 !important;
+            display: block !important;
+            box-sizing: border-box !important;
         }
         .cm-form-group input:focus,
         .cm-form-group select:focus {
-            border-color: #667eea;
+            border-color: #667eea !important;
         }
         .cm-form-group input[type="checkbox"] {
-            width: auto;
-            margin-right: 6px;
+            width: auto !important;
+            margin-right: 6px !important;
+            display: inline-block !important;
         }
         .cm-modal-footer {
-            padding: 12px 16px;
-            border-top: 1px solid #eee;
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
+            padding: 12px 16px !important;
+            border-top: 1px solid #eee !important;
+            display: flex !important;
+            justify-content: flex-end !important;
+            gap: 8px !important;
         }
         /* 浮动按钮 */
         #cookie-manager-fab {
-            position: fixed;
-            bottom: 80px;
-            right: 16px;
-            width: 44px;
-            height: 44px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-            z-index: 999998;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s;
+            position: fixed !important;
+            bottom: 80px !important;
+            right: 16px !important;
+            width: 44px !important;
+            height: 44px !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border: none !important;
+            border-radius: 50% !important;
+            color: white !important;
+            font-size: 20px !important;
+            cursor: pointer !important;
+            z-index: 2147483646 !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: transform 0.2s !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            text-align: center !important;
+            line-height: 1 !important;
         }
         #cookie-manager-fab:hover {
-            transform: scale(1.1);
+            transform: scale(1.1) !important;
         }
         /* Toast */
         .cm-toast {
-            position: fixed;
-            bottom: 140px;
-            right: 20px;
-            background: #333;
-            color: white;
-            padding: 10px 18px;
-            border-radius: 6px;
-            font-size: 13px;
-            z-index: 1000001;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s;
+            position: fixed !important;
+            bottom: 140px !important;
+            right: 20px !important;
+            background: #333 !important;
+            color: white !important;
+            padding: 10px 18px !important;
+            border-radius: 6px !important;
+            font-size: 13px !important;
+            z-index: 2147483647 !important;
+            opacity: 0 !important;
+            transform: translateY(10px) !important;
+            transition: all 0.3s !important;
+            display: block !important;
+            white-space: nowrap !important;
+            margin: 0 !important;
         }
         .cm-toast.show {
-            opacity: 1;
-            transform: translateY(0);
+            opacity: 1 !important;
+            transform: translateY(0) !important;
         }
         /* 移动端适配 */
         @media (max-width: 480px) {
             #cookie-manager-panel {
-                width: 100%;
-                right: -100%;
+                width: 100% !important;
+                right: -100% !important;
             }
             .cm-modal {
-                width: 90%;
+                width: 90% !important;
             }
         }
     `;
