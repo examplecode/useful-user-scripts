@@ -36,3 +36,4 @@ X浏览器的[脚本分享](https://www.xbext.com/user-scripts/)板块包含了�
 | Twitter/X 媒体下载 | 下载 Twitter/X 媒体文件 | [twitter-x-media-download.user.js](twitter-x-media-download.user.js) |
 | Instagram 下载器 | 下载 Instagram 媒体文件 | [instagram-download-button.user.js](instagram-download-button.user.js) |
 | 上下翻页按钮 | 在页面的右侧显示用于翻页的浮动按钮，阅读文章的时候更加便捷 | [page-down-up-button.user.js](page-down-up-button.user.js) |
+| Cookie 管理器 | 管理当前网站的Cookies：查看、编辑、添加、删除、导入导出。支持Tampermonkey/Greasemonkey的GM_cookie API | [cookie-manager.user.js](cookie-manager.user.js) |

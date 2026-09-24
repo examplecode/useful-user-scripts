@@ -34,3 +34,4 @@ The [Script Sharing](https://en.xbext.com/user-scripts/) section of XBrowser inc
 | Twitter/X Media Download | Download Twitter/X media files | [twitter-x-media-download.user.js](twitter-x-media-download.user.js) |
 | Instagram Downloader | Download Instagram media files | [instagram-download-button.user.js](instagram-download-button.user.js) |
 | Page Up/Down Buttons | Displays floating buttons on the right side of the page for page navigation, making article reading more convenient | [page-down-up-button.user.js](page-down-up-button.user.js) |
+| Cookie Manager | Manage cookies for the current website: view, edit, add, delete, import/export. Supports Tampermonkey/Greasemonkey GM_cookie API | [cookie-manager.user.js](cookie-manager.user.js) |
