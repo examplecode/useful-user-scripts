@@ -1,15 +1,12 @@
 // ==UserScript==
 // @name         Cookie 管理器
 // @namespace    https://github.com/examplecode/useful-user-scripts/
-// @version      1.0.0
-// @description  管理当前网站的Cookies：查看、编辑、添加、删除、导入导出。支持Tampermonkey/Greasemonkey的GM_cookie API。
+// @version      2.0.0
+// @description  管理当前网站的Cookies：查看、编辑、添加、删除、导入导出。使用Shadow DOM实现完全样式隔离。
 // @author       examplecode
 // @match        *://*/*
 // @grant        GM_cookie
 // @grant        GM_registerMenuCommand
-// @grant        GM_setValue
-// @grant        GM_getValue
-// @grant        GM_addStyle
 // @run-at       document-idle
 // @license      MIT
 // ==/UserScript==
@@ -20,421 +17,359 @@
     // ==================== 配置 ====================
     const CONFIG = {
         panelWidth: '380px',
-        maxCookieAge: 365 * 24 * 60 * 60, // 1年（秒）
-        storagePrefix: 'cookie_mgr_',
     };
 
-    // ==================== 样式 ====================
+    // ==================== 样式（Shadow DOM 内部，无需 !important）====================
     const STYLES = `
-        /* 样式重置 - 只重置容易冲突的属性，不重置 margin/padding */
-        #cookie-manager-panel,
-        #cookie-manager-panel * {
-            box-sizing: border-box !important;
-            text-align: left !important;
-            word-break: normal !important;
-            word-wrap: normal !important;
-            white-space: normal !important;
-            vertical-align: baseline !important;
-            float: none !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
-        #cookie-manager-panel {
-            position: fixed !important;
-            top: 0 !important;
-            right: -${CONFIG.panelWidth} !important;
-            width: ${CONFIG.panelWidth} !important;
-            height: 100vh !important;
-            height: 100dvh !important;
-            background: #fff !important;
-            box-shadow: -2px 0 12px rgba(0,0,0,0.15) !important;
-            z-index: 2147483647 !important;
-            transition: right 0.3s ease !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            font-size: 14px !important;
-            line-height: 1.5 !important;
-            color: #333 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
+        :host {
+            all: initial;
         }
-        #cookie-manager-panel.open {
-            right: 0 !important;
+
+        .panel {
+            position: fixed;
+            top: 0;
+            right: -${CONFIG.panelWidth};
+            width: ${CONFIG.panelWidth};
+            height: 100vh;
+            height: 100dvh;
+            background: #fff;
+            box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+            z-index: 2147483647;
+            transition: right 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .cm-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            color: white !important;
-            padding: 12px 16px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            flex-shrink: 0 !important;
+        .panel.open {
+            right: 0;
         }
-        .cm-header h3 {
-            margin: 0 !important;
-            font-size: 16px !important;
-            font-weight: 600 !important;
-            color: white !important;
-            display: inline-block !important;
-            width: auto !important;
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
         }
-        .cm-header-actions {
-            display: flex !important;
-            gap: 8px !important;
-            flex-shrink: 0 !important;
-            width: auto !important;
+        .header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
         }
-        .cm-header-btn {
-            background: rgba(255,255,255,0.2) !important;
-            color: white !important;
-            width: 28px !important;
-            height: 28px !important;
-            border-radius: 4px !important;
-            cursor: pointer !important;
-            font-size: 14px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex-shrink: 0 !important;
+        .header-actions {
+            display: flex;
+            gap: 8px;
         }
-        .cm-header-btn:hover {
-            background: rgba(255,255,255,0.35) !important;
+        .header-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .cm-toolbar {
-            padding: 10px 12px !important;
-            border-bottom: 1px solid #eee !important;
-            display: flex !important;
-            gap: 6px !important;
-            flex-shrink: 0 !important;
-            flex-wrap: wrap !important;
-            width: 100% !important;
+        .header-btn:hover {
+            background: rgba(255,255,255,0.35);
         }
-        .cm-btn {
-            padding: 6px 12px !important;
-            border: 1px solid #ddd !important;
-            background: #fff !important;
-            border-radius: 4px !important;
-            cursor: pointer !important;
-            font-size: 12px !important;
-            color: #333 !important;
-            transition: all 0.2s !important;
-            white-space: nowrap !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            width: auto !important;
-            height: auto !important;
-            line-height: 1.5 !important;
+        .toolbar {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
         }
-        .cm-btn:hover {
-            background: #f5f5f5 !important;
-            border-color: #ccc !important;
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #333;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.5;
         }
-        .cm-btn-primary {
-            background: #667eea !important;
-            color: white !important;
-            border-color: #667eea !important;
+        .btn:hover {
+            background: #f5f5f5;
+            border-color: #ccc;
         }
-        .cm-btn-primary:hover {
-            background: #5a6fd6 !important;
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
         }
-        .cm-btn-danger {
-            color: #e74c3c !important;
-            border-color: #e74c3c !important;
-            background: #fff !important;
+        .btn-primary:hover {
+            background: #5a6fd6;
         }
-        .cm-btn-danger:hover {
-            background: #e74c3c !important;
-            color: white !important;
+        .btn-danger {
+            color: #e74c3c;
+            border-color: #e74c3c;
         }
-        .cm-search {
-            padding: 8px 12px !important;
-            border-bottom: 1px solid #eee !important;
-            display: block !important;
-            flex-shrink: 0 !important;
-            width: 100% !important;
+        .btn-danger:hover {
+            background: #e74c3c;
+            color: white;
         }
-        .cm-search input {
-            width: 100% !important;
-            padding: 6px 10px !important;
-            border: 1px solid #ddd !important;
-            border-radius: 4px !important;
-            font-size: 13px !important;
-            outline: none !important;
-            background: #fff !important;
-            color: #333 !important;
-            display: block !important;
+        .search {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            flex-shrink: 0;
         }
-        .cm-search input:focus {
-            border-color: #667eea !important;
+        .search input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+            background: #fff;
+            color: #333;
         }
-        .cm-cookie-list {
-            flex: 1 !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            padding: 8px 12px !important;
-            display: block !important;
-            width: 100% !important;
+        .search input:focus {
+            border-color: #667eea;
         }
-        .cm-cookie-item {
-            background: #f9f9f9 !important;
-            border: 1px solid #eee !important;
-            border-radius: 6px !important;
-            margin-bottom: 8px !important;
-            overflow: hidden !important;
-            display: block !important;
-            width: 100% !important;
+        .cookie-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 8px 12px;
         }
-        .cm-cookie-header {
-            display: flex !important;
-            align-items: center !important;
-            padding: 8px 10px !important;
-            cursor: pointer !important;
-            user-select: none !important;
-            -webkit-user-select: none !important;
-            width: 100% !important;
+        .cookie-item {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
         }
-        .cm-cookie-header:hover {
-            background: #f0f0f0 !important;
+        .cookie-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
         }
-        .cm-cookie-name {
-            font-weight: 600 !important;
-            font-size: 13px !important;
-            color: #333 !important;
-            flex: 1 !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-            display: inline-block !important;
-            width: auto !important;
+        .cookie-header:hover {
+            background: #f0f0f0;
         }
-        .cm-cookie-value-preview {
-            font-size: 11px !important;
-            color: #888 !important;
-            max-width: 120px !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-            margin-left: 8px !important;
-            display: inline-block !important;
-            flex-shrink: 0 !important;
-            width: auto !important;
+        .cookie-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .cm-cookie-toggle {
-            font-size: 12px !important;
-            color: #999 !important;
-            margin-left: 8px !important;
-            transition: transform 0.2s !important;
-            display: inline-block !important;
-            flex-shrink: 0 !important;
-            width: auto !important;
+        .cookie-value-preview {
+            font-size: 11px;
+            color: #888;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: 8px;
+            flex-shrink: 0;
         }
-        .cm-cookie-toggle.expanded {
-            transform: rotate(180deg) !important;
+        .cookie-toggle {
+            font-size: 12px;
+            color: #999;
+            margin-left: 8px;
+            transition: transform 0.2s;
+            flex-shrink: 0;
         }
-        .cm-cookie-details {
-            display: none !important;
-            padding: 10px !important;
-            background: #fff !important;
-            border-top: 1px solid #eee !important;
+        .cookie-toggle.expanded {
+            transform: rotate(180deg);
         }
-        .cm-cookie-details.show {
-            display: block !important;
+        .cookie-details {
+            display: none;
+            padding: 10px;
+            background: #fff;
+            border-top: 1px solid #eee;
         }
-        .cm-detail-row {
-            display: flex !important;
-            margin-bottom: 6px !important;
-            font-size: 12px !important;
-            align-items: flex-start !important;
-            width: 100% !important;
+        .cookie-details.show {
+            display: block;
         }
-        .cm-detail-label {
-            width: 70px !important;
-            color: #666 !important;
-            flex-shrink: 0 !important;
-            display: inline-block !important;
-            white-space: nowrap !important;
+        .detail-row {
+            display: flex;
+            margin-bottom: 6px;
+            font-size: 12px;
+            align-items: flex-start;
         }
-        .cm-detail-value {
-            flex: 1 !important;
-            color: #333 !important;
-            word-break: break-all !important;
-            white-space: normal !important;
-            display: inline-block !important;
-            min-width: 0 !important;
+        .detail-label {
+            width: 70px;
+            color: #666;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
-        .cm-detail-actions {
-            display: flex !important;
-            gap: 6px !important;
-            margin-top: 8px !important;
-            flex-wrap: wrap !important;
-            width: 100% !important;
+        .detail-value {
+            flex: 1;
+            color: #333;
+            word-break: break-all;
+            min-width: 0;
         }
-        .cm-empty {
-            text-align: center !important;
-            color: #999 !important;
-            padding: 40px 20px !important;
-            font-size: 14px !important;
+        .detail-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
         }
-        .cm-status {
-            padding: 6px 12px !important;
-            background: #f5f5f5 !important;
-            border-top: 1px solid #eee !important;
-            font-size: 11px !important;
-            color: #666 !important;
-            flex-shrink: 0 !important;
-            display: block !important;
-            width: 100% !important;
+        .empty {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+        .status {
+            padding: 6px 12px;
+            background: #f5f5f5;
+            border-top: 1px solid #eee;
+            font-size: 11px;
+            color: #666;
+            flex-shrink: 0;
         }
         /* 模态框 */
-        .cm-modal-overlay {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: rgba(0,0,0,0.4) !important;
-            z-index: 2147483647 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 2147483647;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .cm-modal {
-            background: white !important;
-            border-radius: 8px !important;
-            width: 340px !important;
-            max-width: 90% !important;
-            max-height: 80vh !important;
-            overflow-y: auto !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
-            display: block !important;
+        .modal {
+            background: white;
+            border-radius: 8px;
+            width: 340px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
-        .cm-modal-header {
-            padding: 14px 16px !important;
-            border-bottom: 1px solid #eee !important;
-            font-weight: 600 !important;
-            font-size: 15px !important;
-            color: #333 !important;
-            display: block !important;
+        .modal-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            font-size: 15px;
+            color: #333;
         }
-        .cm-modal-body {
-            padding: 16px !important;
-            display: block !important;
+        .modal-body {
+            padding: 16px;
         }
-        .cm-form-group {
-            margin-bottom: 12px !important;
-            display: block !important;
+        .form-group {
+            margin-bottom: 12px;
         }
-        .cm-form-group label {
-            display: block !important;
-            font-size: 12px !important;
-            color: #666 !important;
-            margin-bottom: 4px !important;
-            text-align: left !important;
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
         }
-        .cm-form-group input,
-        .cm-form-group select {
-            width: 100% !important;
-            padding: 8px 10px !important;
-            border: 1px solid #ddd !important;
-            border-radius: 4px !important;
-            font-size: 13px !important;
-            outline: none !important;
-            background: #fff !important;
-            color: #333 !important;
-            display: block !important;
-            box-sizing: border-box !important;
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+            background: #fff;
+            color: #333;
         }
-        .cm-form-group input:focus,
-        .cm-form-group select:focus {
-            border-color: #667eea !important;
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #667eea;
         }
-        .cm-form-group input[type="checkbox"] {
-            width: auto !important;
-            margin-right: 6px !important;
-            display: inline-block !important;
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 6px;
         }
-        .cm-modal-footer {
-            padding: 12px 16px !important;
-            border-top: 1px solid #eee !important;
-            display: flex !important;
-            justify-content: flex-end !important;
-            gap: 8px !important;
+        .modal-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
         }
         /* 浮动按钮 */
-        #cookie-manager-fab {
-            position: fixed !important;
-            bottom: 80px !important;
-            right: 16px !important;
-            width: 44px !important;
-            height: 44px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            border: none !important;
-            border-radius: 50% !important;
-            color: white !important;
-            font-size: 20px !important;
-            cursor: pointer !important;
-            z-index: 2147483646 !important;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transition: transform 0.2s !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            text-align: center !important;
-            line-height: 1 !important;
+        .fab {
+            position: fixed;
+            bottom: 80px;
+            right: 16px;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 2147483646;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
         }
-        #cookie-manager-fab:hover {
-            transform: scale(1.1) !important;
+        .fab:hover {
+            transform: scale(1.1);
         }
         /* Toast */
-        .cm-toast {
-            position: fixed !important;
-            bottom: 140px !important;
-            right: 20px !important;
-            background: #333 !important;
-            color: white !important;
-            padding: 10px 18px !important;
-            border-radius: 6px !important;
-            font-size: 13px !important;
-            z-index: 2147483647 !important;
-            opacity: 0 !important;
-            transform: translateY(10px) !important;
-            transition: all 0.3s !important;
-            display: block !important;
-            white-space: nowrap !important;
-            margin: 0 !important;
+        .toast {
+            position: fixed;
+            bottom: 140px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 13px;
+            z-index: 2147483647;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            white-space: nowrap;
         }
-        .cm-toast.show {
-            opacity: 1 !important;
-            transform: translateY(0) !important;
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
         }
         /* 移动端适配 */
         @media (max-width: 480px) {
-            #cookie-manager-panel {
-                width: 100% !important;
-                right: -100% !important;
+            .panel {
+                width: 100%;
+                right: -100%;
             }
-            .cm-modal {
-                width: 90% !important;
+            .modal {
+                width: 90%;
             }
         }
     `;
 
     // ==================== 工具函数 ====================
-    function showToast(msg, duration = 2000) {
-        let toast = document.querySelector('.cm-toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.className = 'cm-toast';
-            document.body.appendChild(toast);
-        }
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), duration);
-    }
-
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -451,7 +386,6 @@
     }
 
     // ==================== Cookie 操作 ====================
-    // 判断 GM_cookie 回调的 error 是否真的是错误
     function isRealError(error) {
         if (!error) return false;
         if (typeof error === 'string' && error.toLowerCase() === 'success') return false;
@@ -459,7 +393,6 @@
     }
 
     const CookieAPI = {
-        // 列出当前域名的cookies
         list(callback) {
             GM_cookie.list({ url: location.href }, (cookies, error) => {
                 if (isRealError(error)) {
@@ -471,7 +404,6 @@
             });
         },
 
-        // 设置cookie
         set(details, callback) {
             const cookieDetails = {
                 url: location.href,
@@ -482,14 +414,8 @@
                 httpOnly: details.httpOnly || false,
                 sameSite: details.sameSite || 'unspecified',
             };
-
-            if (details.domain) {
-                cookieDetails.domain = details.domain;
-            }
-
-            if (details.expirationDate) {
-                cookieDetails.expirationDate = details.expirationDate;
-            }
+            if (details.domain) cookieDetails.domain = details.domain;
+            if (details.expirationDate) cookieDetails.expirationDate = details.expirationDate;
 
             GM_cookie.set(cookieDetails, (error) => {
                 if (isRealError(error)) {
@@ -501,7 +427,6 @@
             });
         },
 
-        // 删除cookie
         delete(details, callback) {
             GM_cookie.delete({
                 url: location.href,
@@ -517,16 +442,11 @@
             });
         },
 
-        // 删除所有cookies
         deleteAll(cookies, callback) {
             let count = 0;
             let failCount = 0;
             const total = cookies.length;
-
-            if (total === 0) {
-                callback(null, 0);
-                return;
-            }
+            if (total === 0) { callback(null, 0); return; }
 
             cookies.forEach((cookie) => {
                 CookieAPI.delete(cookie, (error) => {
@@ -539,12 +459,10 @@
             });
         },
 
-        // 导出cookies为JSON
         exportJSON(cookies) {
             return JSON.stringify(cookies, null, 2);
         },
 
-        // 导入cookies从JSON
         importJSON(jsonStr, callback) {
             try {
                 const cookies = JSON.parse(jsonStr);
@@ -585,11 +503,9 @@
         },
     };
 
-    // ==================== UI 组件 ====================
+    // ==================== UI 组件（Shadow DOM）====================
     class CookieManagerUI {
         constructor() {
-            this.panel = null;
-            this.fab = null;
             this.cookies = [];
             this.searchTerm = '';
             this.expandedItems = new Set();
@@ -597,14 +513,24 @@
         }
 
         init() {
-            // 注入样式
-            GM_addStyle(STYLES);
+            // 创建 Shadow DOM 宿主
+            this.host = document.createElement('div');
+            this.host.id = 'cookie-manager-root';
+            this.shadow = this.host.attachShadow({ mode: 'open' });
+
+            // 注入样式到 Shadow DOM
+            const styleEl = document.createElement('style');
+            styleEl.textContent = STYLES;
+            this.shadow.appendChild(styleEl);
 
             // 创建浮动按钮
             this.createFAB();
 
             // 创建面板
             this.createPanel();
+
+            // 挂载到页面
+            document.body.appendChild(this.host);
 
             // 注册菜单命令
             this.registerMenuCommands();
@@ -613,76 +539,83 @@
             this.registerShortcuts();
         }
 
+        // 在 Shadow DOM 中查找元素
+        $(selector) {
+            return this.shadow.querySelector(selector);
+        }
+
+        $$(selector) {
+            return this.shadow.querySelectorAll(selector);
+        }
+
+        showToast(msg, duration = 2000) {
+            let toast = this.$('.toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.className = 'toast';
+                this.shadow.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), duration);
+        }
+
         createFAB() {
             this.fab = document.createElement('button');
-            this.fab.id = 'cookie-manager-fab';
+            this.fab.className = 'fab';
             this.fab.innerHTML = '🍪';
-            this.fab.title = 'Cookie 管理器';
             this.fab.addEventListener('click', () => this.togglePanel());
-            document.body.appendChild(this.fab);
+            this.shadow.appendChild(this.fab);
         }
 
         createPanel() {
             this.panel = document.createElement('div');
-            this.panel.id = 'cookie-manager-panel';
+            this.panel.className = 'panel';
             this.panel.innerHTML = `
-                <div class="cm-header">
+                <div class="header">
                     <h3>🍪 Cookie 管理器</h3>
-                    <div class="cm-header-actions">
-                        <button class="cm-header-btn" id="cm-refresh" title="刷新">↻</button>
-                        <button class="cm-header-btn" id="cm-close" title="关闭">✕</button>
+                    <div class="header-actions">
+                        <button class="header-btn" id="refresh" title="刷新">↻</button>
+                        <button class="header-btn" id="close" title="关闭">✕</button>
                     </div>
                 </div>
-                <div class="cm-toolbar">
-                    <button class="cm-btn cm-btn-primary" id="cm-add">+ 添加</button>
-                    <button class="cm-btn" id="cm-export">导出</button>
-                    <button class="cm-btn" id="cm-import">导入</button>
-                    <button class="cm-btn cm-btn-danger" id="cm-delete-all">清空</button>
+                <div class="toolbar">
+                    <button class="btn btn-primary" id="add">+ 添加</button>
+                    <button class="btn" id="export">导出</button>
+                    <button class="btn" id="import">导入</button>
+                    <button class="btn btn-danger" id="delete-all">清空</button>
                 </div>
-                <div class="cm-search">
-                    <input type="text" id="cm-search-input" placeholder="搜索 Cookie 名称或值...">
+                <div class="search">
+                    <input type="text" id="search-input" placeholder="搜索 Cookie 名称或值...">
                 </div>
-                <div class="cm-cookie-list" id="cm-cookie-list">
-                    <div class="cm-empty">加载中...</div>
+                <div class="cookie-list" id="cookie-list">
+                    <div class="empty">加载中...</div>
                 </div>
-                <div class="cm-status" id="cm-status">就绪</div>
+                <div class="status" id="status">就绪</div>
             `;
-            document.body.appendChild(this.panel);
+            this.shadow.appendChild(this.panel);
 
             // 绑定事件
             this.bindEvents();
         }
 
         bindEvents() {
-            // 关闭按钮
-            document.getElementById('cm-close').addEventListener('click', () => this.closePanel());
+            this.$('#close').addEventListener('click', () => this.closePanel());
+            this.$('#refresh').addEventListener('click', () => this.loadCookies());
+            this.$('#add').addEventListener('click', () => this.showAddModal());
+            this.$('#export').addEventListener('click', () => this.exportCookies());
+            this.$('#import').addEventListener('click', () => this.showImportModal());
+            this.$('#delete-all').addEventListener('click', () => this.deleteAllCookies());
 
-            // 刷新按钮
-            document.getElementById('cm-refresh').addEventListener('click', () => this.loadCookies());
-
-            // 添加按钮
-            document.getElementById('cm-add').addEventListener('click', () => this.showAddModal());
-
-            // 导出按钮
-            document.getElementById('cm-export').addEventListener('click', () => this.exportCookies());
-
-            // 导入按钮
-            document.getElementById('cm-import').addEventListener('click', () => this.showImportModal());
-
-            // 清空按钮
-            document.getElementById('cm-delete-all').addEventListener('click', () => this.deleteAllCookies());
-
-            // 搜索框
-            document.getElementById('cm-search-input').addEventListener('input', (e) => {
+            this.$('#search-input').addEventListener('input', (e) => {
                 this.searchTerm = e.target.value.toLowerCase();
                 this.renderCookies();
             });
 
-            // 点击面板外关闭
+            // 点击面板外关闭（Shadow DOM 中事件会冒泡到宿主）
             document.addEventListener('click', (e) => {
                 if (this.panel.classList.contains('open') &&
-                    !this.panel.contains(e.target) &&
-                    e.target !== this.fab) {
+                    e.target !== this.host && !this.shadow.contains(e.target)) {
                     this.closePanel();
                 }
             });
@@ -695,12 +628,10 @@
 
         registerShortcuts() {
             document.addEventListener('keydown', (e) => {
-                // Ctrl+Shift+C 打开面板
                 if (e.ctrlKey && e.shiftKey && e.key === 'C') {
                     e.preventDefault();
                     this.togglePanel();
                 }
-                // ESC 关闭面板
                 if (e.key === 'Escape' && this.panel.classList.contains('open')) {
                     this.closePanel();
                 }
@@ -729,7 +660,7 @@
             CookieAPI.list((cookies, error) => {
                 if (error) {
                     this.setStatus('加载失败: ' + error);
-                    showToast('加载Cookie失败');
+                    this.showToast('加载Cookie失败');
                     return;
                 }
                 this.cookies = cookies;
@@ -739,65 +670,65 @@
         }
 
         renderCookies() {
-            const list = document.getElementById('cm-cookie-list');
+            const list = this.$('#cookie-list');
             const filtered = this.getFilteredCookies();
 
             if (filtered.length === 0) {
-                list.innerHTML = '<div class="cm-empty">暂无 Cookie</div>';
+                list.innerHTML = '<div class="empty">暂无 Cookie</div>';
                 return;
             }
 
             list.innerHTML = filtered.map((cookie, index) => `
-                <div class="cm-cookie-item" data-index="${index}">
-                    <div class="cm-cookie-header" data-index="${index}">
-                        <span class="cm-cookie-name">${escapeHtml(cookie.name)}</span>
-                        <span class="cm-cookie-value-preview">${escapeHtml(cookie.value)}</span>
-                        <span class="cm-cookie-toggle ${this.expandedItems.has(index) ? 'expanded' : ''}">▼</span>
+                <div class="cookie-item" data-index="${index}">
+                    <div class="cookie-header" data-index="${index}">
+                        <span class="cookie-name">${escapeHtml(cookie.name)}</span>
+                        <span class="cookie-value-preview">${escapeHtml(cookie.value)}</span>
+                        <span class="cookie-toggle ${this.expandedItems.has(index) ? 'expanded' : ''}">▼</span>
                     </div>
-                    <div class="cm-cookie-details ${this.expandedItems.has(index) ? 'show' : ''}" data-index="${index}">
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">名称:</span>
-                            <span class="cm-detail-value">${escapeHtml(cookie.name)}</span>
+                    <div class="cookie-details ${this.expandedItems.has(index) ? 'show' : ''}" data-index="${index}">
+                        <div class="detail-row">
+                            <span class="detail-label">名称:</span>
+                            <span class="detail-value">${escapeHtml(cookie.name)}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">值:</span>
-                            <span class="cm-detail-value">${escapeHtml(cookie.value)}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">值:</span>
+                            <span class="detail-value">${escapeHtml(cookie.value)}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">域名:</span>
-                            <span class="cm-detail-value">${escapeHtml(cookie.domain)}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">域名:</span>
+                            <span class="detail-value">${escapeHtml(cookie.domain)}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">路径:</span>
-                            <span class="cm-detail-value">${escapeHtml(cookie.path)}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">路径:</span>
+                            <span class="detail-value">${escapeHtml(cookie.path)}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">过期:</span>
-                            <span class="cm-detail-value">${formatDate(cookie.expirationDate)}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">过期:</span>
+                            <span class="detail-value">${formatDate(cookie.expirationDate)}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">安全:</span>
-                            <span class="cm-detail-value">${cookie.secure ? '✓ 是' : '✗ 否'}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">安全:</span>
+                            <span class="detail-value">${cookie.secure ? '✓ 是' : '✗ 否'}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">HttpOnly:</span>
-                            <span class="cm-detail-value">${cookie.httpOnly ? '✓ 是' : '✗ 否'}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">HttpOnly:</span>
+                            <span class="detail-value">${cookie.httpOnly ? '✓ 是' : '✗ 否'}</span>
                         </div>
-                        <div class="cm-detail-row">
-                            <span class="cm-detail-label">SameSite:</span>
-                            <span class="cm-detail-value">${cookie.sameSite || '未设置'}</span>
+                        <div class="detail-row">
+                            <span class="detail-label">SameSite:</span>
+                            <span class="detail-value">${cookie.sameSite || '未设置'}</span>
                         </div>
-                        <div class="cm-detail-actions">
-                            <button class="cm-btn cm-btn-primary cm-edit-btn" data-index="${index}">编辑</button>
-                            <button class="cm-btn cm-btn-danger cm-delete-btn" data-index="${index}">删除</button>
-                            <button class="cm-btn cm-copy-btn" data-index="${index}">复制值</button>
+                        <div class="detail-actions">
+                            <button class="btn btn-primary edit-btn" data-index="${index}">编辑</button>
+                            <button class="btn btn-danger delete-btn" data-index="${index}">删除</button>
+                            <button class="btn copy-btn" data-index="${index}">复制值</button>
                         </div>
                     </div>
                 </div>
             `).join('');
 
             // 绑定展开/折叠事件
-            list.querySelectorAll('.cm-cookie-header').forEach((header) => {
+            this.$$('.cookie-header').forEach((header) => {
                 header.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const idx = parseInt(header.dataset.index);
@@ -806,29 +737,26 @@
             });
 
             // 绑定编辑事件
-            list.querySelectorAll('.cm-edit-btn').forEach((btn) => {
+            this.$$('.edit-btn').forEach((btn) => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const idx = parseInt(btn.dataset.index);
-                    this.showEditModal(idx);
+                    this.showEditModal(parseInt(btn.dataset.index));
                 });
             });
 
             // 绑定删除事件
-            list.querySelectorAll('.cm-delete-btn').forEach((btn) => {
+            this.$$('.delete-btn').forEach((btn) => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const idx = parseInt(btn.dataset.index);
-                    this.deleteCookie(idx);
+                    this.deleteCookie(parseInt(btn.dataset.index));
                 });
             });
 
             // 绑定复制事件
-            list.querySelectorAll('.cm-copy-btn').forEach((btn) => {
+            this.$$('.copy-btn').forEach((btn) => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const idx = parseInt(btn.dataset.index);
-                    this.copyCookieValue(idx);
+                    this.copyCookieValue(parseInt(btn.dataset.index));
                 });
             });
         }
@@ -844,37 +772,35 @@
 
         getFilteredCookies() {
             if (!this.searchTerm) return this.cookies;
-
             return this.cookies.filter((cookie) => {
-                const nameMatch = cookie.name.toLowerCase().includes(this.searchTerm);
-                const valueMatch = cookie.value.toLowerCase().includes(this.searchTerm);
-                const domainMatch = cookie.domain.toLowerCase().includes(this.searchTerm);
-                return nameMatch || valueMatch || domainMatch;
+                return cookie.name.toLowerCase().includes(this.searchTerm) ||
+                       cookie.value.toLowerCase().includes(this.searchTerm) ||
+                       cookie.domain.toLowerCase().includes(this.searchTerm);
             });
         }
 
         // ==================== 模态框 ====================
         showModal(title, bodyHTML, onConfirm) {
             const overlay = document.createElement('div');
-            overlay.className = 'cm-modal-overlay';
+            overlay.className = 'modal-overlay';
             overlay.innerHTML = `
-                <div class="cm-modal">
-                    <div class="cm-modal-header">${title}</div>
-                    <div class="cm-modal-body">${bodyHTML}</div>
-                    <div class="cm-modal-footer">
-                        <button class="cm-btn cm-cancel-btn">取消</button>
-                        <button class="cm-btn cm-btn-primary cm-confirm-btn">确定</button>
+                <div class="modal">
+                    <div class="modal-header">${title}</div>
+                    <div class="modal-body">${bodyHTML}</div>
+                    <div class="modal-footer">
+                        <button class="btn cancel-btn">取消</button>
+                        <button class="btn btn-primary confirm-btn">确定</button>
                     </div>
                 </div>
             `;
 
-            document.body.appendChild(overlay);
+            this.shadow.appendChild(overlay);
 
-            overlay.querySelector('.cm-cancel-btn').addEventListener('click', () => {
+            overlay.querySelector('.cancel-btn').addEventListener('click', () => {
                 overlay.remove();
             });
 
-            overlay.querySelector('.cm-confirm-btn').addEventListener('click', () => {
+            overlay.querySelector('.confirm-btn').addEventListener('click', () => {
                 onConfirm(overlay);
             });
 
@@ -885,41 +811,41 @@
 
         showAddModal() {
             const body = `
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>名称 *</label>
-                    <input type="text" id="cm-cookie-name" placeholder="cookie_name">
+                    <input type="text" id="cookie-name" placeholder="cookie_name">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>值</label>
-                    <input type="text" id="cm-cookie-value" placeholder="cookie_value">
+                    <input type="text" id="cookie-value" placeholder="cookie_value">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>域名</label>
-                    <input type="text" id="cm-cookie-domain" placeholder="${getDomain()}" value="${getDomain()}">
+                    <input type="text" id="cookie-domain" placeholder="${getDomain()}" value="${getDomain()}">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>路径</label>
-                    <input type="text" id="cm-cookie-path" placeholder="/" value="/">
+                    <input type="text" id="cookie-path" placeholder="/" value="/">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>过期时间</label>
-                    <input type="datetime-local" id="cm-cookie-expire">
+                    <input type="datetime-local" id="cookie-expire">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>
-                        <input type="checkbox" id="cm-cookie-secure">
+                        <input type="checkbox" id="cookie-secure">
                         Secure（仅HTTPS）
                     </label>
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>
-                        <input type="checkbox" id="cm-cookie-httponly">
+                        <input type="checkbox" id="cookie-httponly">
                         HttpOnly
                     </label>
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>SameSite</label>
-                    <select id="cm-cookie-samesite">
+                    <select id="cookie-samesite">
                         <option value="unspecified">未指定</option>
                         <option value="no_restriction">None</option>
                         <option value="lax">Lax</option>
@@ -929,20 +855,13 @@
             `;
 
             this.showModal('添加 Cookie', body, (overlay) => {
-                const name = overlay.querySelector('#cm-cookie-name').value.trim();
+                const name = overlay.querySelector('#cookie-name').value.trim();
                 if (!name) {
-                    showToast('请输入 Cookie 名称');
+                    this.showToast('请输入 Cookie 名称');
                     return;
                 }
 
-                const value = overlay.querySelector('#cm-cookie-value').value;
-                const domain = overlay.querySelector('#cm-cookie-domain').value.trim();
-                const path = overlay.querySelector('#cm-cookie-path').value || '/';
-                const expireStr = overlay.querySelector('#cm-cookie-expire').value;
-                const secure = overlay.querySelector('#cm-cookie-secure').checked;
-                const httpOnly = overlay.querySelector('#cm-cookie-httponly').checked;
-                const sameSite = overlay.querySelector('#cm-cookie-samesite').value;
-
+                const expireStr = overlay.querySelector('#cookie-expire').value;
                 let expirationDate = undefined;
                 if (expireStr) {
                     expirationDate = Math.floor(new Date(expireStr).getTime() / 1000);
@@ -950,18 +869,18 @@
 
                 CookieAPI.set({
                     name,
-                    value,
-                    domain,
-                    path,
-                    secure,
-                    httpOnly,
-                    sameSite,
+                    value: overlay.querySelector('#cookie-value').value,
+                    domain: overlay.querySelector('#cookie-domain').value.trim(),
+                    path: overlay.querySelector('#cookie-path').value || '/',
+                    secure: overlay.querySelector('#cookie-secure').checked,
+                    httpOnly: overlay.querySelector('#cookie-httponly').checked,
+                    sameSite: overlay.querySelector('#cookie-samesite').value,
                     expirationDate,
                 }, (error) => {
                     if (error) {
-                        showToast('添加失败: ' + error);
+                        this.showToast('添加失败: ' + error);
                     } else {
-                        showToast('添加成功');
+                        this.showToast('添加成功');
                         overlay.remove();
                         this.loadCookies();
                     }
@@ -978,41 +897,41 @@
                 : '';
 
             const body = `
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>名称</label>
-                    <input type="text" id="cm-edit-name" value="${escapeHtml(cookie.name)}" readonly style="background:#f5f5f5">
+                    <input type="text" id="edit-name" value="${escapeHtml(cookie.name)}" readonly style="background:#f5f5f5">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>值</label>
-                    <input type="text" id="cm-edit-value" value="${escapeHtml(cookie.value)}">
+                    <input type="text" id="edit-value" value="${escapeHtml(cookie.value)}">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>域名</label>
-                    <input type="text" id="cm-edit-domain" value="${escapeHtml(cookie.domain)}">
+                    <input type="text" id="edit-domain" value="${escapeHtml(cookie.domain)}">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>路径</label>
-                    <input type="text" id="cm-edit-path" value="${escapeHtml(cookie.path)}">
+                    <input type="text" id="edit-path" value="${escapeHtml(cookie.path)}">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>过期时间</label>
-                    <input type="datetime-local" id="cm-edit-expire" value="${expireDateStr}">
+                    <input type="datetime-local" id="edit-expire" value="${expireDateStr}">
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>
-                        <input type="checkbox" id="cm-edit-secure" ${cookie.secure ? 'checked' : ''}>
+                        <input type="checkbox" id="edit-secure" ${cookie.secure ? 'checked' : ''}>
                         Secure（仅HTTPS）
                     </label>
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>
-                        <input type="checkbox" id="cm-edit-httponly" ${cookie.httpOnly ? 'checked' : ''}>
+                        <input type="checkbox" id="edit-httponly" ${cookie.httpOnly ? 'checked' : ''}>
                         HttpOnly
                     </label>
                 </div>
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>SameSite</label>
-                    <select id="cm-edit-samesite">
+                    <select id="edit-samesite">
                         <option value="unspecified" ${cookie.sameSite === 'unspecified' ? 'selected' : ''}>未指定</option>
                         <option value="no_restriction" ${cookie.sameSite === 'no_restriction' ? 'selected' : ''}>None</option>
                         <option value="lax" ${cookie.sameSite === 'lax' ? 'selected' : ''}>Lax</option>
@@ -1022,14 +941,7 @@
             `;
 
             this.showModal('编辑 Cookie', body, (overlay) => {
-                const value = overlay.querySelector('#cm-edit-value').value;
-                const domain = overlay.querySelector('#cm-edit-domain').value.trim();
-                const path = overlay.querySelector('#cm-edit-path').value || '/';
-                const expireStr = overlay.querySelector('#cm-edit-expire').value;
-                const secure = overlay.querySelector('#cm-edit-secure').checked;
-                const httpOnly = overlay.querySelector('#cm-edit-httponly').checked;
-                const sameSite = overlay.querySelector('#cm-edit-samesite').value;
-
+                const expireStr = overlay.querySelector('#edit-expire').value;
                 let expirationDate = undefined;
                 if (expireStr) {
                     expirationDate = Math.floor(new Date(expireStr).getTime() / 1000);
@@ -1038,24 +950,24 @@
                 // 先删除旧cookie，再设置新的
                 CookieAPI.delete(cookie, (error) => {
                     if (error) {
-                        showToast('更新失败: ' + error);
+                        this.showToast('更新失败: ' + error);
                         return;
                     }
 
                     CookieAPI.set({
                         name: cookie.name,
-                        value,
-                        domain,
-                        path,
-                        secure,
-                        httpOnly,
-                        sameSite,
+                        value: overlay.querySelector('#edit-value').value,
+                        domain: overlay.querySelector('#edit-domain').value.trim(),
+                        path: overlay.querySelector('#edit-path').value || '/',
+                        secure: overlay.querySelector('#edit-secure').checked,
+                        httpOnly: overlay.querySelector('#edit-httponly').checked,
+                        sameSite: overlay.querySelector('#edit-samesite').value,
                         expirationDate,
                     }, (error) => {
                         if (error) {
-                            showToast('更新失败: ' + error);
+                            this.showToast('更新失败: ' + error);
                         } else {
-                            showToast('更新成功');
+                            this.showToast('更新成功');
                             overlay.remove();
                             this.loadCookies();
                         }
@@ -1071,9 +983,9 @@
             if (confirm(`确定要删除 Cookie "${cookie.name}" 吗？`)) {
                 CookieAPI.delete(cookie, (error) => {
                     if (error) {
-                        showToast('删除失败: ' + error);
+                        this.showToast('删除失败: ' + error);
                     } else {
-                        showToast('已删除');
+                        this.showToast('已删除');
                         this.loadCookies();
                     }
                 });
@@ -1082,7 +994,7 @@
 
         deleteAllCookies() {
             if (this.cookies.length === 0) {
-                showToast('没有可删除的 Cookie');
+                this.showToast('没有可删除的 Cookie');
                 return;
             }
 
@@ -1090,9 +1002,9 @@
                 this.setStatus('正在删除...');
                 CookieAPI.deleteAll(this.cookies, (error, count) => {
                     if (error) {
-                        showToast('删除失败');
+                        this.showToast('删除失败');
                     } else {
-                        showToast(`已删除 ${count} 个 Cookie`);
+                        this.showToast(`已删除 ${count} 个 Cookie`);
                         this.loadCookies();
                     }
                 });
@@ -1105,7 +1017,7 @@
 
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(cookie.value).then(() => {
-                    showToast('已复制到剪贴板');
+                    this.showToast('已复制到剪贴板');
                 }).catch(() => {
                     this.fallbackCopy(cookie.value);
                 });
@@ -1123,16 +1035,16 @@
             textarea.select();
             try {
                 document.execCommand('copy');
-                showToast('已复制到剪贴板');
+                this.showToast('已复制到剪贴板');
             } catch (e) {
-                showToast('复制失败');
+                this.showToast('复制失败');
             }
             textarea.remove();
         }
 
         exportCookies() {
             if (this.cookies.length === 0) {
-                showToast('没有可导出的 Cookie');
+                this.showToast('没有可导出的 Cookie');
                 return;
             }
 
@@ -1144,29 +1056,29 @@
             a.download = `cookies_${getDomain()}_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('导出成功');
+            this.showToast('导出成功');
         }
 
         showImportModal() {
             const body = `
-                <div class="cm-form-group">
+                <div class="form-group">
                     <label>粘贴 Cookie JSON 数据</label>
-                    <textarea id="cm-import-data" style="width:100%;height:150px;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-family:monospace;resize:vertical" placeholder='[{"name":"example","value":"123","domain":".example.com"}]'></textarea>
+                    <textarea id="import-data" style="width:100%;height:150px;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-family:monospace;resize:vertical" placeholder='[{"name":"example","value":"123","domain":".example.com"}]'></textarea>
                 </div>
             `;
 
             this.showModal('导入 Cookies', body, (overlay) => {
-                const jsonStr = overlay.querySelector('#cm-import-data').value.trim();
+                const jsonStr = overlay.querySelector('#import-data').value.trim();
                 if (!jsonStr) {
-                    showToast('请输入 JSON 数据');
+                    this.showToast('请输入 JSON 数据');
                     return;
                 }
 
                 CookieAPI.importJSON(jsonStr, (error, count) => {
                     if (error) {
-                        showToast('导入失败: ' + error.message);
+                        this.showToast('导入失败: ' + (error.message || error));
                     } else {
-                        showToast(`成功导入 ${count} 个 Cookie`);
+                        this.showToast(`成功导入 ${count} 个 Cookie`);
                         overlay.remove();
                         this.loadCookies();
                     }
@@ -1175,13 +1087,12 @@
         }
 
         setStatus(text) {
-            const status = document.getElementById('cm-status');
+            const status = this.$('#status');
             if (status) status.textContent = text;
         }
     }
 
     // ==================== 初始化 ====================
-    // 等待 DOM 就绪
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => new CookieManagerUI());
     } else {
