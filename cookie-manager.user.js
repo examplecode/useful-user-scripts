@@ -2,9 +2,10 @@
 // @name         Cookie 管理器
 // @namespace    https://github.com/examplecode/useful-user-scripts/
 // @version      2.0.0
-// @description  管理当前网站的Cookies：查看、编辑、添加、删除、导入导出。使用Shadow DOM实现完全样式隔离。
+// @description  管理当前网站的Cookies：查看、编辑、添加、删除、导入导出
 // @author       examplecode
 // @match        *://*/*
+// @homepage     https://github.com/examplecode/useful-user-scripts/
 // @grant        GM_cookie
 // @grant        GM_registerMenuCommand
 // @run-at       document-idle

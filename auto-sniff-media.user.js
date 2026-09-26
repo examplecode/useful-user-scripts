@@ -13,5 +13,31 @@
 
 
 !function() {
-	GM_EX_sniffMedia();
-} ();
+    // 检测页面中是否存在音视频元素或 iframe 元素
+    function hasMediaOrIframe() {
+        return !!document.querySelector('video, audio, iframe');
+    }
+    
+    // 仅当检测到相关元素时才执行嗅探
+    function trySniff() {
+        if (hasMediaOrIframe()) {
+            GM_EX_sniffMedia();
+        }
+    }
+    
+    // 首次立即执行
+    trySniff();
+    
+    // 延迟 300 毫秒后开始
+    setTimeout(function() {
+        let count = 0;
+        // 每隔 1 秒执行一次，执行三次
+        const interval = setInterval(function() {
+            trySniff();
+            count++;
+            if (count >= 3) {
+                clearInterval(interval);
+            }
+        }, 1000);
+    }, 300);
+}();
