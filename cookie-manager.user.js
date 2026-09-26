@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Cookie 管理器
 // @namespace    https://github.com/examplecode/useful-user-scripts/
-// @version      2.0.0
-// @description  管理当前网站的Cookies：查看、编辑、添加、删除、导入导出
+// @version      2.0.1
+// @description  管理当前网站的Cookies：查看、复制、编辑、添加、删除、导入导出
 // @author       examplecode
 // @match        *://*/*
 // @homepage     https://github.com/examplecode/useful-user-scripts/
@@ -582,6 +582,7 @@
                 </div>
                 <div class="toolbar">
                     <button class="btn btn-primary" id="add">+ 添加</button>
+                    <button class="btn" id="copy-all">复制</button>
                     <button class="btn" id="export">导出</button>
                     <button class="btn" id="import">导入</button>
                     <button class="btn btn-danger" id="delete-all">清空</button>
@@ -604,6 +605,7 @@
             this.$('#close').addEventListener('click', () => this.closePanel());
             this.$('#refresh').addEventListener('click', () => this.loadCookies());
             this.$('#add').addEventListener('click', () => this.showAddModal());
+            this.$('#copy-all').addEventListener('click', () => this.copyAllCookies());
             this.$('#export').addEventListener('click', () => this.exportCookies());
             this.$('#import').addEventListener('click', () => this.showImportModal());
             this.$('#delete-all').addEventListener('click', () => this.deleteAllCookies());
@@ -1041,6 +1043,26 @@
                 this.showToast('复制失败');
             }
             textarea.remove();
+        }
+
+        copyAllCookies() {
+            if (this.cookies.length === 0) {
+                this.showToast('没有可复制的 Cookie');
+                return;
+            }
+
+            // 生成 name=value; 格式的字符串
+            const cookieStr = this.cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(cookieStr).then(() => {
+                    this.showToast(`已复制 ${this.cookies.length} 个 Cookie`);
+                }).catch(() => {
+                    this.fallbackCopy(cookieStr);
+                });
+            } else {
+                this.fallbackCopy(cookieStr);
+            }
         }
 
         exportCookies() {
